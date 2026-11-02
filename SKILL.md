@@ -280,11 +280,12 @@ multi_timer.c/.h   （换 1ms 时基时改）
 
 ---
 
-## 附：走流程时发现的文档差异（不改 README，仅记录）
+## 附：走查中确认的边界
 
-- README 第 4.1/4.3 节把 LZSS 文件写成默认结果；实际新图层默认“内部”，需手动切 LZSS；内部存储不会生成 `ui_assets_lzss.*` / `ui_asset_draw.*`。
-- README 的 `Page0Port_SetLevel(66)` 会被示例的 `PAGE0_MAX_LEVEL=35` 夹成 35。
-- README 说“业务/UI 层最少 6 个函数”，但纯 66 只需 4 个（Setup/Goto/DrawField/timer_loop）；`UI_DrawFrame/UI_DrawFrameRefAt` 是静态帧/多帧才需要。
-- README 的 SPI 表未列 `SPI_TransmitDC`；示例实际依赖 8 个 SPI 函数，且只实现 `LCD_*` 时 SPI 层可以完全不要。
-- README 说换 MCU 只改 `bsp_gc9a01`/`bsp_spiHost`/`bsp_gpio`/`app_lcd`，遗漏了 `multi_timer.c` 的 `CW_BTIM1` 和 `bsp_gc9a01.c` 里的 SysTick `HAL_Delay`。
-- `examples/render-port/README.md` 第 119–121 行把 `ring_tables.h`/`ring_grad.h` 列在 `code/lcd`，实际在 `code/spi`；且仓库内没有生成这两张表的 `gen_tables.py`。
+- 网页新图层默认存储是「内部」；要用本示例的 LZSS 渲染桥，必须手动把数字层切到「LZSS」。内部存储只生成 raw 字模，不生成 `ui_assets_lzss.*` / `lzss_decode.*` / `ui_asset_draw.*`，不能直接套本示例的 `app_ui.c`。
+- `Page0Port_SetLevel()` 有 `PAGE0_MAX_LEVEL=35` 的夹紧；显示 66 请直接改 `g_uiSpeed` 再 `UI_DrawField`。
+- `g_uiSpeed` 是示例 `ui_user.h` 里的绑定名；如果网页绑定 `motor.speedlevel`，需要保证 `motor` 结构体在 `ui_user.h` 可见，否则表编不过。
+- 纯数字 66 只需要 4 个 UI/业务函数 + 3 个面板原语；静态帧/电池才会额外用到 `UI_DrawFrame*`。
+- 复用示例 `bsp_gc9a01.c` 才需要 8 个 `SPI_*`；自己实现 `LCD_*` 时 SPI 层可以不要。
+- 换 MCU 还要替换 `multi_timer.c` 的 1ms 时基，以及 `bsp_gc9a01.c` 里的 SysTick `HAL_Delay`。
+- `ring_tables.h` / `ring_grad.h` 是示例圆环引擎自带，不由网页导出；`ring_scan.h/.c` 只在启用逐像素扫描时生成。
