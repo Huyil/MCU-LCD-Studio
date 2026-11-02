@@ -116,8 +116,10 @@ Page0Port_SetPause(1, 0xFFFF);       /* 1 = PAUSE，0 = K·RPM */
 
 ```text
 ui_assets_lzss.c/.h  ui_assets_int.c  ui_font.c  ui_table.c/.h
-ui_color.h  ui_task.c/.h  ring_config.h  ring_scan.h/.c
+ui_color.h  ui_task.c/.h  ring_config.h
 ```
+
+如果启用了圆环逐像素扫描，导出物里还会多出 `ring_scan.h/.c`，一并加入工程。
 
 `ring_tables.h` / `ring_grad.h` 是示例圆环引擎自带的表，不由网页导出；换圆环参数时按引擎的生成方式处理，不要指望一键导出覆盖它们。
 
