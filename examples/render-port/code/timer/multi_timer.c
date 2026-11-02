@@ -1,6 +1,9 @@
 /*
+ * MultiTimer (legacy branch)
  * Copyright (c) 2016 Zibin Zheng <znbin@qq.com>
- * All rights reserved
+ * MIT License — https://github.com/0x1abin/MultiTimer/tree/legacy
+ *
+ * Modified for this example: CW32L011 BTIM1 timebase and local tick handling.
  */
 
 #include <stdio.h>

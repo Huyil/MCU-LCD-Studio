@@ -299,3 +299,18 @@ https://huyil.github.io/MCU-LCD-Studio/
 - [docs/ui-export-redesign.md](docs/ui-export-redesign.md)：导出器设计细节。
 
 MIT License，见 [LICENSE](LICENSE)。
+
+---
+
+## 11. 开源署名与字体来源
+
+- **MultiTimer（legacy）**：Zibin Zheng，MIT，<https://github.com/0x1abin/MultiTimer/tree/legacy>；
+  示例位于 `examples/render-port/code/timer/`，已按 CW32L011 的 1ms 时基修改。
+- **MiSans**：© Xiaomi，来源 <https://hyperos.mi.com/font/>；网页内置的是 WOFF2 预览子集。
+- **HarmonyOS Sans SC**：© Huawei，来源
+  <https://developer.huawei.com/consumer/cn/doc/design-guides/font-0000001157868583>。
+- **OPPO Sans 4.0**：© OPPO，来源 <https://www.coloros.com/>。
+- **DSEG7 Classic**：keshikan，SIL OFL 1.1，来源 <https://github.com/keshikan/DSEG>；
+  示例字体与 OFL 文本在 `examples/render-port/source/`。
+
+完整版权/许可说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。字体文件再分发前请以官方最新许可为准。
