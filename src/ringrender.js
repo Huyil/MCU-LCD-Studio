@@ -114,7 +114,7 @@ export function ringArcRange(r) {
   return { startDeg, endDeg: startDeg + dir * spanDeg, spanDeg, rangeU, full: rangeU >= 720, dir }
 }
 
-/* 预览拖尾长度 (0.5°): 倒计时效果按 DR1152 的时间口径折算 ——
+/* 预览拖尾长度 (0.5°): 倒计时效果按 参考工程 的时间口径折算 ——
  * 固件 RINGUI_TAIL_MS = 200ms, tailU = 720 × tailMs / countMs (与 app_ring_ui.c 的
  * ringui_trail_u(sel) 同式, 下限 10 = RINGUI_TAIL_MIN_U); 静态效果仍用设计值 tailU。
  * countMs 是整条弧走完的时间 (固件里 sel 秒 × 1000), 所以拖尾角长在倒计时过程中不变。 */
@@ -1763,7 +1763,7 @@ export function drawRing(ctx, inst, opts = {}) {
         const tw8 = Math.max(0, Math.min(255, Math.round(trackW * 255)))
         /* 帽盘 = 填充层盖在轨道层上: 盘内 w8=255 → 纯 fill; 盘边按 w8 从轨道色
          * 过渡到填充色。**不能**在帽区直接取 fill 再把 alpha 降成 w8 —— 那会让
-         * 帽边向页面底色(常为黑)淡出, 在轨道色上留一圈黑边 (DR1152 现场)。 */
+         * 帽边向页面底色(常为黑)淡出, 在轨道色上留一圈黑边 (参考工程 现场)。 */
         const capW = ringArcCapW(dx, dy, arcCfg)
         if (capW > 0) { segCap = true; segM = 1 }
         /* 范围外只剩轨道端帽时也保持实心 (与理想路径的 rangeCapsOn 同一口径) */
@@ -1774,7 +1774,7 @@ export function drawRing(ctx, inst, opts = {}) {
         /* 覆盖率的 alpha 必须带端帽权重 aw8: 部分弧的圆帽边界靠它做抗锯齿。
          * 但帽是「填充层盖在轨道层上」: 帽边颜色按 w8 混向轨道色, alpha 不能同时
          * 再乘一次 w8 —— 否则颜色权重 × alpha 权重二次衰减, 帽边向页面底色(黑)
-         * 淡出, 在轨道色上留一圈黑边 (DR1152 现场的「圆帽旁边黑色区域」)。
+         * 淡出, 在轨道色上留一圈黑边 (参考工程 现场的「圆帽旁边黑色区域」)。
          * 轨道覆盖到的地方 aw8=255; 只有范围外只剩帽盘时才按 w8 向底色淡出。 */
         let a8 = (cov8 * aw8 + 127) / 255 | 0
         if (segG && segG.mode === 'cut') a8 = (a8 * segM + 0.5) | 0

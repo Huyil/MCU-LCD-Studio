@@ -186,7 +186,7 @@ ok('UI: 阈值/增益只在 σ>0 时展开', /v-if="\(\+draft\.glowSigma \|\| 0\
 /* ---------- 紧排 (glowFit): 光晕照算, 但裁回原格子 ----------
  * 现场问题: 数字字库每格四周留 ceil(3σ) ⇒ σ=4 时每格 +24px, 字距被拉开;
  * 紧排把带 pad 算完的光晕裁回原格子, 字距与不开光晕时完全一致 (代价: 格子外弱光被切)。
- * 默认 false ⇒ 老工程/DR1152 (σ=0) 一个字节都不变。 */
+ * 默认 false ⇒ 老工程/参考工程 (σ=0) 一个字节都不变。 */
 ok('glowCfg: 紧排默认 false, 且返回值带 fit 字段',
    /const fit = !!cfg\.glowFit/.test(store) &&
    /pad: glowPadOf\(thresh, sigma, gain, on\), fit/.test(store) &&

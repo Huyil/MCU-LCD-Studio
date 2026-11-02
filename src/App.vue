@@ -64,7 +64,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   <div class="app">
     <header class="topbar">
       <div class="brand">
-        <span class="logo">◧</span> LCD Layout Studio
+        <span class="logo">◧</span> MCU LCD Studio
         <span class="tag">{{ screen.name }} · {{ screen.w }}×{{ screen.h }}{{ screen.round ? ' · 圆屏' : '' }}</span>
       </div>
       <div class="grow"></div>

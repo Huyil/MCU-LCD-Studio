@@ -12,7 +12,7 @@
  *   · 可选分片 (chunkBytes): 按行切, 每片 ≤ chunkBytes (行宽超过粒度时退化为 1 行/片);
  *   · 解码器 lzss_decode.c/.h 与渲染桥 ui_asset_draw.c/.h。
  *
- * 与旧 assetpack 的区别: 不认识 DR2159、不认识 54×80/14 帧/2400 B;
+ * 通用格式: 不认识具体项目/分辨率, 没有 54×80/14 帧/2400 B 之类的硬编码;
  * 所有尺寸/帧数/格式都来自输入, 分片只影响 RAM 与压缩率。
  */
 import { lzssCompress, hashBytes } from './lzss.js'
@@ -243,7 +243,7 @@ export function genAssetsH(plan) {
  * rawlen 不占表项: rawlen = w * h * (fmt == UI_FMT_GRAY8 ? 1 : 2)。
  * 组宏: UI_ASSET_<key> = 首片 ID, _N = 帧/字形数, _C = 每帧/每字形片数。
  *
- * 固件契约 (DR2159 重写时按这个改):
+ * 固件契约:
  *   顶层绘制用 UI_DrawFrame(id, color) / UI_DrawFrameAt(id, x, y, color) (id = g_uiFrames 下标);
  *   动态区域的指针版是内部接口 UI_DrawFrameRef/RefAt;
  *   内部按下面两条分派 (UI_DrawAsset 由 ui_asset_draw.c 提供):

@@ -1,7 +1,7 @@
 /*
  * 圆环逐像素扫描导出 (ring_scan.h/.c) 自检: node scripts/check-ringscan.mjs
  *
- * 对齐 DR2120B 的 picArc / frameIndices 数据格式:
+ * 对齐 参考工程 的 picArc / frameIndices 数据格式:
  *   · 沿圆环递增方向, 逐坐标 + RGB565 (默认高低字节交换)
  *   · 每条扫描线取 scanWidth 像素 (默认 2px, 与参考图一致)
  *   · frameIndices[L] = 第 L 档结束处最后一个像素下标 (含), [0]=0, [LEVELS]=COUNT-1

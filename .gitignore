@@ -2,3 +2,9 @@ node_modules/
 dist/
 .vite/
 *.log
+
+# local debug/scratch
+cap-inspect.html
+ring-*.html
+ring-seg-preview/
+docs/framegroup-*.png

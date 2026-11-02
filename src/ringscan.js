@@ -1,5 +1,5 @@
 /*
- * 圆环「逐像素扫描」导出 (对齐 DR2120B 的 picArc / frameIndices 数据格式)
+ * 圆环「逐像素扫描」导出 (对齐 参考工程 的 picArc / frameIndices 数据格式)
  *
  * 需求 (用户原话): 「沿着圆环递增方向, 逐坐标和像素颜色导出, 最后还有一份分档位的
  * 映射表, 用于区分每个刻度」—— 即:
@@ -10,7 +10,7 @@
  *   · 圆环: 以中径为中心, 沿角度递增方向扫描, 横向取 scanWidth 像素 (默认 2px)
  *   · 圆角矩形: 以中心线周长参数 t 递增, 沿法线方向取 scanWidth 像素
  *   · 颜色: 画布 RGBA 与黑底混合 → RGB565; 默认按 LCD_drawPx 的字节序做高低交换
- *     (DR2120B 的 picArc 就是交换过的: 0x07E0 绿 → 0xE007)
+ *     (参考工程 的 picArc 就是交换过的: 0x07E0 绿 → 0xE007)
  *   · frameIndices[L] = 第 L 档结束处最后一个像素下标 (含); L=1..LEVELS,
  *     frameIndices[0]=0, 满档 = COUNT-1 —— 引擎点第 L 档时画 0..frameIndices[L] 即可。
  *
@@ -140,7 +140,7 @@ export function scanFromImage(inst, sc, img, opts = {}) {
 
 const hx4 = (v) => '0x' + (v & 0xFFFF).toString(16).toUpperCase().padStart(4, '0')
 
-/** 生成 ring_scan.h / ring_scan.c 文本 (对齐 DR2120B 的 ArcPX_PIC / picArc / frameIndices 思路) */
+/** 生成 ring_scan.h / ring_scan.c 文本 (对齐 参考工程 的 ArcPX_PIC / picArc / frameIndices 思路) */
 export function ringScanFiles(inst, seq, sc = { w: 240, h: 240 }) {
   const r = inst.ring
   const o = seq.opts
@@ -155,7 +155,7 @@ export function ringScanFiles(inst, seq, sc = { w: 240, h: 240 }) {
   h.push(' * ring_scan.h —— 圆环逐像素扫描表 (由网页 MCU-LCD-Editer 自动生成, 请勿手改)')
   h.push(' *')
   h.push(' * 沿圆环**递增方向**逐坐标 + RGB565 颜色; 颜色已按 LCD_drawPx 的字节序做高低交换')
-  h.push(' * (与 DR2120B 的 picArc 一致: 0x07E0 绿 → 0xE007)。')
+  h.push(' * (与 参考工程 的 picArc 一致: 0x07E0 绿 → 0xE007)。')
   h.push(' *')
   h.push(' * frameIndices[L] = 第 L 档结束处最后一个像素下标 (含):')
   h.push(' *   frameIndices[0] = 0, frameIndices[LEVELS] = COUNT-1;')
@@ -183,7 +183,7 @@ export function ringScanFiles(inst, seq, sc = { w: 240, h: 240 }) {
   h.push('#define RING_SCAN_SWAP    ' + (o.swap ? 1 : 0))
   h.push('#define RING_SCAN_COORD16 ' + (coord16 ? 1 : 0))
   h.push('')
-  h.push('/* 与 DR2120B pic.h 的 ArcPX_PIC 同布局 (x,y,color); 屏幕 >255 时坐标自动用 16 位 */')
+  h.push('/* 与 参考工程 pic.h 的 ArcPX_PIC 同布局 (x,y,color); 屏幕 >255 时坐标自动用 16 位 */')
   h.push('#if RING_SCAN_COORD16')
   h.push('typedef struct { unsigned short x, y; unsigned short color; } RingScanPx;')
   h.push('#else')

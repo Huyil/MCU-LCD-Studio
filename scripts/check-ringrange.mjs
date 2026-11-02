@@ -2,7 +2,7 @@
  * 圆环「弧度范围 + 倒计时拖尾」自检: node scripts/check-ringrange.mjs
  *
  * 用户需求 (原话): 「修改圆环代码，增加 起始角 与 结束角或弧度范围」+
- *                  「在 web 实现 DR1152 这个倒计时的圆环效果作为选项，DR1152 带有递减边缘的渐变」
+ *                  「在 web 实现 参考工程 这个倒计时的圆环效果作为选项，参考工程 带有递减边缘的渐变」
  *
  * 这里不做"调用同一个函数再拿它自己的结果比对"的空转, 而是:
  *   1) 纯函数边界: ringArcRange 的顺/逆时针、跨 0°、null/空串/同角、0.5° 量化;
@@ -56,7 +56,7 @@ const { drawRing, ringArcRange, ringArcGeom, ringTailU, ringRectGeom, ringRectGe
     ['end = undefined = 整圈', {}, { spanDeg: 360, rangeU: 720, full: true, dir: 1, endDeg: 270 }],
     ['end = 空串 = 整圈', { arcEndDeg: '' }, { spanDeg: 360, rangeU: 720, full: true, dir: 1, endDeg: 270 }],
     ['end 非数字 = 整圈', { arcEndDeg: 'abc' }, { spanDeg: 360, rangeU: 720, full: true, dir: 1, endDeg: 270 }],
-    ['270° 逆时针到 0° = 270° 弧 (DR1152 预设)', { startDeg: 270, arcDir: -1, arcEndDeg: 0 },
+    ['270° 逆时针到 0° = 270° 弧 (参考工程 预设)', { startDeg: 270, arcDir: -1, arcEndDeg: 0 },
       { spanDeg: 270, rangeU: 540, full: false, dir: -1, endDeg: 0 }],
     ['270° 顺时针到 0° = 90° 弧', { startDeg: 270, arcDir: 1, arcEndDeg: 0 },
       { spanDeg: 90, rangeU: 180, full: false, dir: 1, endDeg: 360 }],
@@ -386,7 +386,7 @@ function runCase(shape, startDeg, spanDeg, dir, caps, frac, sync) {
 
   /* 4c) 满圈端帽: 帽盘 AA 边界必须仍然不透明 —— 帽是"填充层盖在轨道层上",
    *     帽边按权重混向轨道色; 若把帽边的 alpha 也降成权重, 它就会向页面底色(黑)
-   *     淡出, 在轨道色上留下**一圈黑边** (DR1152 现场: 圆帽旁边有黑色区域).
+   *     淡出, 在轨道色上留下**一圈黑边** (参考工程 现场: 圆帽旁边有黑色区域).
    *     判据: 环带内部、帽盘 AA 环上的像素 alpha 必须 = 255. */
   {
     const ring = Object.assign({}, baseCircle, {

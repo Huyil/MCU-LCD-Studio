@@ -604,7 +604,7 @@ const cArr = (name, data, per = 16) => {
   return L.join('\n')
 }
 
-/* ---- 外部 Flash 的"最终形态"导出 (2026-10-13, 对齐 DR1152 固件侧约定) ----
+/* ---- 外部 Flash 的"最终形态"导出 (2026-10-13, 对齐 参考工程 固件侧约定) ----
  * 外部素材以 const uint16_t + `UI_EXT_RO` 发射 —— **段名不再出现在生成代码里**:
  *   · `UI_EXT_RO` 是工程侧的宏 (写在导出物目录里那份**不被覆盖**的 ui_user.h 里),
  *     形如 `#define UI_EXT_RO __attribute__((used, section("ER_EXTUI")))`;

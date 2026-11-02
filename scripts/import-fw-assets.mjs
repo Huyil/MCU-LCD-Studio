@@ -3,7 +3,7 @@
  *
  *   node scripts/import-fw-assets.mjs [固件根目录]
  *
- * 思路与 DR2120B/tools/ota_gui.py 的 extract_c_array() 一致: 直接解析 MCU 工程里的
+ * 思路与 参考工程 tools/ota_gui.py 的 extract_c_array() 一致: 直接解析 MCU 工程里的
  * C 数组 (pic.c / ascii1408.c / pic_battery.c), 保证网页素材与设备内置**逐字节一致**。
  * 之后固件侧可以删掉这些字库 (素材改由网页导出)。
  *
@@ -19,7 +19,7 @@ if (!FW) {
   process.exit(1)
 }
 
-/* 素材表: 与 DR2120B/tools/ota_gui.py 的 DEFAULT_PATTERN_SOURCE 一致
+/* 素材表: 与 参考工程 tools/ota_gui.py 的 DEFAULT_PATTERN_SOURCE 一致
  * 尺寸取自带 Image2Lcd 头的数组长度 (w*h*bpp) 与 pic.c 的 Picture 结构 */
 const ASSETS = [
   /* 2026-11: 默认素材库只保留字体; LOGO / KRPM / 方向 / BLE / 电池等图片默认素材已清理。
@@ -87,7 +87,7 @@ for (const a of ASSETS) {
 const js = `/*
  * fwassets.js —— 从 MCU 固件源码导入的内置素材库 (网页默认素材库)
  *
- * 由 scripts/import-fw-assets.mjs 生成, 数据取自 DR2120B 工程 (与 tools/ota_gui.py 的
+ * 由 scripts/import-fw-assets.mjs 生成, 数据取自参考工程 (与 tools/ota_gui.py 的
  * DEFAULT_PATTERN_SOURCE 同一批素材), **逐字节与设备内置一致**:
 ${manifest.map(m => ' *   ' + m).join('\n')}
  *

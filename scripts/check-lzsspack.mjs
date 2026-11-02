@@ -5,7 +5,7 @@
  *   1) codec: 任意字节 round-trip + 截断/越界负测试;
  *   2) 规划: 组 ID / 帧数 / 片数 / 缓冲大小 (分片与不分片);
  *   3) 压缩: 表项逐片解压 == 原始字节; 相同帧去重 (off 相同);
- *   4) 生成物: 头宏 / 表偏移 / 解码器 / 渲染桥; 不再出现 DR2159 固定布局;
+ *   4) 生成物: 头宏 / 表偏移 / 解码器 / 渲染桥; 不再出现 参考工程 固定布局;
  *   5) 导出对接: 图层 store=lzss → key 无 _ext/_int, 帧表 .asset,
  *      仅尺寸/原始帧在 LZSS 工程里写 UI_ASSET_NONE;
  *   6) 字库/取图表: UI_FONT.assetBase、UI_DrawAsset 调用。
@@ -128,7 +128,7 @@ for (const chunkBytes of [0, 2400, 256]) {
   ok('头文件: 每组 _N/_C 宏', plan.groups.every(g => by['ui_assets_lzss.h'].includes(`#define UI_ASSET_${g.key}_N`) && by['ui_assets_lzss.h'].includes(`#define UI_ASSET_${g.key}_C`)))
   ok('数据文件: 表项数 = 片数', (by['ui_assets_lzss.c'].match(/^    \{\s*\d+,\s*\d+,/gm) || []).length === enc.entries.length)
   ok('数据文件: blob 长度声明', by['ui_assets_lzss.c'].includes(`const uint8_t g_uiAssetBlob[${enc.blob.length}]`))
-  ok('解码器: 无工程常量', !/2400|54|80|14|DR2159/.test(by['lzss_decode.c'] + by['lzss_decode.h']))
+  ok('解码器: 无工程常量', !/2400|54|80|14/.test(by['lzss_decode.c'] + by['lzss_decode.h']))
   ok('渲染桥: 按 fmt 分派', by['ui_asset_draw.c'].includes('UI_FMT_GRAY8') && by['ui_asset_draw.c'].includes('ui_blit_rgb'))
   ok('渲染桥: 支持 mirror', by['ui_asset_draw.c'].includes('uint8_t mirror') && by['ui_assets_lzss.h'].includes('uint8_t mirror'))
   ok('渲染桥: 顶层 2 函数 (id 版)', by['ui_asset_draw.h'].includes('UI_DrawFrame(uint16_t id') && by['ui_asset_draw.h'].includes('UI_DrawFrameAt(uint16_t id') && by['ui_asset_draw.h'].includes('UI_DrawFrameRef(const UI_FRAME_REF *f'))

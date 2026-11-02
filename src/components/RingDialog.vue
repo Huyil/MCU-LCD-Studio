@@ -1241,7 +1241,7 @@ function onMaskClick(e) {
                            :placeholder="String(draft.ring.steps)" style="width: 62px" />
                   </div>
                   <div class="field-row">
-                    <label class="chk" title="DR2120B 的 LCD_drawPx 先发低字节; picArc 里的颜色是高低交换过的">
+                    <label class="chk" title="某些 LCD_drawPx 先发低字节；picArc 里的颜色可能已做高低交换">
                       <input type="checkbox" v-model="draft.ring.scanSwap" />颜色高低字节交换
                     </label>
                     <span class="dim">沿弧的进度方向逐坐标 + RGB565；frameIndices 每档结束下标</span>
@@ -1249,7 +1249,7 @@ function onMaskClick(e) {
                   <div class="dim note2">
                     导出时按「满档」渲染后扫描（白斑/动画关闭），坐标是屏幕绝对坐标；颜色取 2px 线宽内实际渲染像素。
                     frameIndices[L] = 第 L 档最后一个像素下标（含），frameIndices[0]=0、满档 = COUNT−1。
-                    DR2120B 引擎可直接替换 picArc/frameIndices，把 MAX_SPEED_LEVEL 改成 RING_SCAN_LEVELS。
+                    目标引擎可直接用 picArc/frameIndices 替换自己的扫描表，档位数用 RING_SCAN_LEVELS。
                   </div>
                 </div>
 
