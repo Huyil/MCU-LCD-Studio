@@ -1,7 +1,7 @@
 import { reactive, computed, watch } from 'vue'
 import { defaultPresets, syncBuiltinPresets, uid, FORMATS } from './defaults.js'
 import { sanitizeName, renderTemplate, templateContext } from './template.js'
-import { processImage, buildCArrayText, buildFontTableText, applyCropWindow, svgToCanvas, renderNumCanvas, inkBox, inkBoxLit, ditherGray565, blurGray, addGlowLike, glowPadOf, cropGray } from './imageproc.js'
+import { processImage, buildCArrayText, buildFontTableText, applyCropWindow, svgToCanvas, renderNumCanvas, inkBox, inkBoxLit, ditherGray565, blurGray, addGlowLike, glowPadOf, cropGray, tintCanvas } from './imageproc.js'
 import { setRingAnimAngle, getRingAnimAngle, setRingAnimValue, getRingAnimValue,
          dropRingAnim, drawRing, ringLapPx, ringRectGeomQ8, ringRectTableR, ringInsetPx,
          ringAnimFlags, ringArcRange, ringGradStops, ringSegGeom } from './ringrender.js'
@@ -3079,6 +3079,9 @@ export function instanceProc(inst) {
       tint: inst.color, mirror: inst.mirror,
       grayPack: p.grayPack, rgb888AsMacro: p.rgb888AsMacro,
     })
+    /* ！导出的 RGB565 字节必须保持白色字迹 (固件后续按 color 算/叠色), 不能在这里染色。
+     *   只染**预览画布**: 否则改颜色后主画布预览仍是一张白字, 看起来像颜色设置没生效。 */
+    if (inst.fmt === 'RGB565') proc.canvas = tintCanvas(proc.canvas, inst.color, { zeroTransparent: true })
     proc._key = key
     procCache.set(inst.id, { key, proc })
     return proc
@@ -3111,6 +3114,8 @@ export function instanceProc(inst) {
     const sctx = strip.getContext('2d')
     seq.forEach((c, i) => { if (c) sctx.drawImage(c.canvas, i * (gw + sp), 0) })
     const proc = processImage(strip, strip.width, strip.height, inst.fmt, { tint: inst.color })
+    /* 同系统字: RGB565 导出保持白色字迹, 只给预览画布染色。 */
+    if (inst.fmt === 'RGB565') proc.canvas = tintCanvas(proc.canvas, inst.color, { zeroTransparent: true })
     proc._key = key
     procCache.set(inst.id, { key, proc })
     return proc
