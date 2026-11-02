@@ -350,7 +350,14 @@ async function run() {
       <div class="lzss-title">LZSS 素材
         <span class="dim">{{ lzssStat.groups }} 组 / {{ lzssStat.blocks }} 块</span>
       </div>
-      <div class="dim st">原始 {{ KB(lzssStat.rawBytes) }} → 压缩 {{ KB(lzssStat.packedBytes) }}（{{ lzssSavedText }}） · 表 {{ lzssStat.tableBytes }} B</div>
+      <div class="dim st" title="原始素材总量 = LZSS 原始像素 + 内部 raw + 外部 raw；不压缩、不按存储方式拆分时的总量">
+        原始素材总量（内部 + 外部）：<b>{{ KB(lzssStat.originalBytes) }}</b>
+      </div>
+      <div v-if="lzssStat.rawIntBytes || lzssStat.rawExtBytes" class="dim st">
+        LZSS {{ KB(lzssStat.rawBytes) }} · 内部 raw {{ KB(lzssStat.rawIntBytes) }} · 外部 raw {{ KB(lzssStat.rawExtBytes) }}
+      </div>
+      <div v-if="lzssStat.rawIntBytes" class="dim st">LZSS 原始 {{ KB(lzssStat.rawBytes) }} → 压缩 {{ KB(lzssStat.packedBytes) }}（{{ lzssSavedText }}） · 表 {{ lzssStat.tableBytes }} B</div>
+      <div v-else class="dim st">LZSS 压缩 {{ KB(lzssStat.packedBytes) }}（{{ lzssSavedText }}） · 表 {{ lzssStat.tableBytes }} B</div>
       <div class="dim st">解码 RAM：<b>{{ lzssStat.bufferSize }} B</b>
         （{{ lzssStat.chunked ? '分片 ' + lzssStat.chunkBytes + ' B' : '不分片（按最大帧）' }}）</div>
       <label class="cprs" title="按行切片: 每片解压后再画。开 = 缓冲小、块数多；关 = 一块解完整帧，缓冲 = 最大帧。表里每片都带 y 偏移, 渲染桥逐片绘制。">

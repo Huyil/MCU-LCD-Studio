@@ -1317,6 +1317,20 @@ export function exportLayer(opt = {}) {
     }
     lzssEnc = encodeLzss(lzssPlan)
   }
+  /* 原始素材字节数: LZSS 的 rawBytes 只是"走压缩的那部分"; 这里再算内部/外部 raw,
+   * 给导出面板一个"如果不压缩、全放内部 Flash 要占多少"的基数。 */
+  const pxBytes = (arr) => (arr || []).reduce((n, p) =>
+    n + (p.gray ? p.gray.length : (p.rgb ? p.rgb.length * 2 : 0)), 0)
+  const rawIntBytes = pxBytes(intPx) + (fontSets || []).reduce((n, x) =>
+    n + (x.f.store === 'lzss' || x.f.store === 'ext' ? 0 : (x.set?.bytes?.length || 0)), 0)
+  const rawExtBytes = pxBytes(extPx) + (fontSets || []).reduce((n, x) =>
+    n + (x.f.store === 'ext' ? (x.set?.bytes?.length || 0) : 0), 0)
+  const lzssExtra = lzssPlan ? {
+    rawIntBytes,
+    rawExtBytes,
+    originalIntBytes: rawIntBytes + (lzssEnc?.stats?.rawBytes || 0),
+    originalBytes: rawIntBytes + rawExtBytes + (lzssEnc?.stats?.rawBytes || 0),
+  } : {}
   /* 只算 LZSS 预估: 不生成其余 C 文件/工程 JSON/圆环扫描, 避免导出面板拖拽时卡顿 */
   if (opt.onlyLzss) {
     return {
@@ -1329,6 +1343,7 @@ export function exportLayer(opt = {}) {
           chunked: lzssPlan.chunked,
           chunkBytes: lzssPlan.chunkBytes,
           warnings: lzssPlan.warnings,
+          ...lzssExtra,
         } : null,
       },
     }
@@ -1389,6 +1404,7 @@ export function exportLayer(opt = {}) {
         chunked: lzssPlan.chunked,
         chunkBytes: lzssPlan.chunkBytes,
         warnings: lzssPlan.warnings,
+        ...lzssExtra,
       } : null,
     },
   }

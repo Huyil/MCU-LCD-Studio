@@ -157,6 +157,10 @@ const keys = Object.fromEntries(collectLayerPlan(state.instances, state.assets, 
   ok('LZSS 导出: 表项数/统计/RAM',
     lz.stat.lzss && lz.stat.lzss.blocks === 2 && lz.stat.lzss.rawBytes === 12 * 20 + 39 * 18 * 2 &&
     lz.stat.lzss.packedBytes > 0 && lz.stat.lzss.bufferSize === 39 * 18 * 2)
+  ok('LZSS 统计: 原始素材（内部 Flash）= LZSS raw + 内部 raw',
+    typeof lz.stat.lzss.rawIntBytes === 'number' &&
+    lz.stat.lzss.originalIntBytes === lz.stat.lzss.rawBytes + lz.stat.lzss.rawIntBytes &&
+    lz.stat.lzss.originalBytes === lz.stat.lzss.rawBytes + lz.stat.lzss.rawIntBytes + lz.stat.lzss.rawExtBytes)
   ok('LZSS 导出: 渲染桥顶层 2 函数',
     by['ui_asset_draw.h'].includes('UI_DrawFrame(') && by['ui_asset_draw.h'].includes('UI_DrawFrameAt(') &&
     by['ui_asset_draw.c'].includes('UI_DrawFrameRefAt(const UI_FRAME_REF *f') &&
