@@ -1321,9 +1321,16 @@ export function exportLayer(opt = {}) {
    * 给导出面板一个"如果不压缩、全放内部 Flash 要占多少"的基数。 */
   const pxBytes = (arr) => (arr || []).reduce((n, p) =>
     n + (p.gray ? p.gray.length : (p.rgb ? p.rgb.length * 2 : 0)), 0)
-  const rawIntBytes = pxBytes(intPx) + (fontSets || []).reduce((n, x) =>
+  /* 文字 / ASCII 字库层: 整份字模表不在 fontSets 里 (fontSets 只管数字绑定字库),
+   * 而是 plan.items[].picTable.rows。按行字节数计入内部/外部 raw; LZSS 已由 rawBytes 统计。 */
+  const picBytes = (it) => (it.picTable?.rows || []).reduce((n, r) => n + (r?.length || 0), 0)
+  const rawIntPicBytes = (plan.items || []).reduce((n, it) =>
+    n + (it.store === 'lzss' || it.store === 'ext' ? 0 : picBytes(it)), 0)
+  const rawExtPicBytes = (plan.items || []).reduce((n, it) =>
+    n + (it.store === 'ext' ? picBytes(it) : 0), 0)
+  const rawIntBytes = pxBytes(intPx) + rawIntPicBytes + (fontSets || []).reduce((n, x) =>
     n + (x.f.store === 'lzss' || x.f.store === 'ext' ? 0 : (x.set?.bytes?.length || 0)), 0)
-  const rawExtBytes = pxBytes(extPx) + (fontSets || []).reduce((n, x) =>
+  const rawExtBytes = pxBytes(extPx) + rawExtPicBytes + (fontSets || []).reduce((n, x) =>
     n + (x.f.store === 'ext' ? (x.set?.bytes?.length || 0) : 0), 0)
   const lzssExtra = lzssPlan ? {
     rawIntBytes,

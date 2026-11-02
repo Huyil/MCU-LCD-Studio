@@ -304,6 +304,22 @@ const keys = Object.fromEntries(collectLayerPlan(state.instances, state.assets, 
   const m = dataAll.match(/const uint8_t asc_1Pic\[(\d+)\]\[(\d+)\]/)
   const iA = state.instances.find(i => i.id === 'inst_ascii1')
   const t = store.asciiTableFor(iA)
+  /* ASCII 字库整份字模是 40KB 级素材: 切内部/LZSS 时“原始素材总量”必须一致, 不能切内部就消失 */
+  const oldAsciiStore = i5b.store
+  const oldAnchorStore = i1.store
+  i1.store = 'lzss'                 /* 保证两次导出都有 LZSS 框, 否则纯内部工程没有 stat.lzss */
+  i5b.store = 'int'
+  const asciiInt = exportLayer({ lzssChunked: true, lzssChunkBytes: 2400 }).stat.lzss
+  i5b.store = 'lzss'
+  const asciiLz = exportLayer({ lzssChunked: true, lzssChunkBytes: 2400 }).stat.lzss
+  i5b.store = oldAsciiStore
+  i1.store = oldAnchorStore
+  ok('ASCII 字库: 内部/LZSS 切换时原始素材总量不变, 且内部字模计入 rawIntBytes',
+    !!asciiInt && !!asciiLz && !!t &&
+    asciiInt.originalBytes === asciiLz.originalBytes &&
+    asciiInt.rawIntBytes >= t.bytes &&
+    asciiLz.rawBytes >= t.bytes,
+    t ? `bytes=${t.bytes} intTotal=${asciiInt?.originalBytes} lzTotal=${asciiLz?.originalBytes}` : '')
   ok('ASCII 字库: 字模表是整份 0x20~0x7E 的 95 行 (字符序 = 码序)',
     !!m && +m[1] === 95 && !!t && t.first === 32 && t.count === 95 && t.rows.length === 95,
     m ? `${m[0]}` : '没找到 asc_1Pic')
