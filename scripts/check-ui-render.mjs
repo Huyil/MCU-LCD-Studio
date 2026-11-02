@@ -490,6 +490,9 @@ try {
        eaSrc.includes('修改路径…') && eaSrc.includes('取消'))
     ok('一键导出: 权限失败/不支持时打包成一个 ZIP (不再散落下载)',
        eaSrc.includes('buildZipBlob') && eaSrc.includes('zipFileName') && eaSrc.includes('已打包 ZIP'))
+    ok('一键导出旁边有独立 ZIP 下载 (不申请文件夹)',
+       eaSrc.includes('downloadZip') && eaSrc.includes('ZIP 下载') &&
+       /downloadFallback\(files, `手动 ZIP 下载/.test(eaSrc))
     ok('右栏: 操作区重新分组 (导出到文件夹 / 复制下载 / 保存图片)',
        exp.includes('独立目录 · 覆盖前确认') && exp.includes('C 代码文本') && exp.includes('当前预览帧'))
   }

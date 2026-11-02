@@ -190,6 +190,29 @@ async function downloadFallback(files, reason) {
   }
 }
 
+/** 只下载 ZIP，不申请/写入任何文件夹。与「一键导出到文件夹」共用同一份 exportLayer()。 */
+async function downloadZip() {
+  if (busy.value) return
+  busy.value = true
+  try {
+    status.value = '核定字体…'
+    const gate = await ensureFontsReady()
+    if (!gate.ok) {
+      status.value = `字体还没就绪 (${gate.missing.join(', ')}): 已重新拉取, 等 1~2 秒再点一次`
+        + ' —— 现在导出会把回退字体的字模写进 ui_font.c'
+      return
+    }
+    let files, stat
+    try { ({ files, stat } = exportLayer()) } catch (e) {
+      status.value = '导出失败: ' + e.message
+      return
+    }
+    await downloadFallback(files, `手动 ZIP 下载（图层 ${stat.layers}）`)
+  } finally {
+    busy.value = false
+  }
+}
+
 async function run() {
   if (busy.value) return
   busy.value = true
@@ -311,10 +334,16 @@ async function run() {
 
 <template>
   <div class="ea">
-    <button class="primary" :disabled="busy" @click="run"
-            title="把 ring_config.h / ring_scan.h/.c / ui_table.c / ui_font.c / ui_assets_*.c / ui_assets_lzss.* / lzss_decode.* / ui_asset_draw.* / ui_task.* 一次写进这个存档自己的 code/lcd/ 目录 (每个存档单独记住; 不支持时逐个下载)">
-      {{ busy ? '导出中…' : '一键导出到文件夹' }}
-    </button>
+    <div class="mainrow">
+      <button class="primary" :disabled="busy" @click="run"
+              title="把 ring_config.h / ring_scan.h/.c / ui_table.c / ui_font.c / ui_assets_*.c / ui_assets_lzss.* / lzss_decode.* / ui_asset_draw.* / ui_task.* 一次写进这个存档自己的 code/lcd/ 目录 (每个存档单独记住; 不支持时打包 ZIP)">
+        {{ busy ? '导出中…' : '一键导出到文件夹' }}
+      </button>
+      <button class="zipbtn" :disabled="busy" @click="downloadZip"
+              title="不写文件夹，直接把本次导出的全部 .c/.h/JSON 打成一个 ZIP 下载">
+        ZIP 下载
+      </button>
+    </div>
     <!-- LZSS 概览: 由图层上的「LZSS」存储选择决定, 不需要全局开关。
          数据与导出共用同一份 plan/pack, 不会出现"预估一套、导出另一套"。 -->
     <div v-if="lzssStat" class="lzssbox">
@@ -385,6 +414,9 @@ async function run() {
 /* 主操作单独占一行: 状态文字再长也只占自己那一行, 不挤旁边的按钮 */
 .ea { display: flex; flex-direction: column; gap: 4px; }
 .ea button { width: 100%; }
+.mainrow { display: flex; gap: 6px; align-items: stretch; }
+.mainrow .primary { flex: 1 1 0; min-width: 0; }
+.mainrow .zipbtn { flex: 1 1 0; width: auto; white-space: nowrap; }
 .dirline { display: flex; align-items: center; gap: 4px; min-width: 0; font-size: 11px; }
 .dirline .dname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
 .dirline button { flex: none; width: auto; padding: 0 6px; font-size: 10px; line-height: 18px; }
