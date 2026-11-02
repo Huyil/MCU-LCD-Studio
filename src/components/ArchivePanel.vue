@@ -356,20 +356,26 @@ function onProjFile(e) {
 
 <template>
   <div ref="root" class="projectbar archive" :class="{ open: menuOpen }">
-    <button class="star-btn" :class="{ dirty }" :title="barTitle" @click="toggleMenu">★</button>
-    <button class="proj-name" :title="barTitle" @click="toggleMenu">
-      <span class="pname">{{ displayName }}</span>
-      <span v-if="dirty" class="dirty-dot" title="有未保存修改">●</span>
-    </button>
-    <span class="grow"></span>
-    <span class="dims dim mono">{{ sc.w }}×{{ sc.h }}{{ sc.round ? '圆' : '' }}</span>
-    <button class="mini" title="导出整个工程 JSON（素材 / 图层 / 页面 / 自定义字库）" @click="downloadProject">JSON⤓</button>
-    <button class="mini" title="导入工程 JSON（会替换当前工程，可 Ctrl+Z 撤回）" @click="projFile.click()">JSON⤒</button>
-    <button class="mini" :class="{ primary: dirty }" :disabled="busy || !cloud.ok" :title="cloud.ok
-      ? '保存到当前存档（自定义字库会随工程一起上传）；没有档名会打开存档菜单'
-      : '在线存档不可用：请用「导出 JSON」备份'" @click="quickSave">保存</button>
-    <button class="mini" title="屏幕预设（尺寸 / 圆屏 / 背景色 / 指令模板）" @click="openPreset">⚙</button>
-    <button class="mini chev" :class="{ on: menuOpen }" title="快速切换 / 存档管理" @click="toggleMenu">{{ menuOpen ? '⌃' : '⌄' }}</button>
+    <!-- 第一行: 名字 + 展开按钮; 第二行: 其余操作 -->
+    <div class="bar-row1">
+      <button class="star-btn" :class="{ dirty }" :title="barTitle" @click="toggleMenu">★</button>
+      <button class="proj-name" :title="barTitle" @click="toggleMenu">
+        <span class="pname">{{ displayName }}</span>
+        <span v-if="dirty" class="dirty-dot" title="有未保存修改">●</span>
+      </button>
+      <span class="grow"></span>
+      <button class="mini chev" :class="{ on: menuOpen }" title="快速切换 / 存档管理" @click="toggleMenu">{{ menuOpen ? '⌃' : '⌄' }}</button>
+    </div>
+    <div class="bar-row2">
+      <span class="dims dim mono">{{ sc.w }}×{{ sc.h }}{{ sc.round ? '圆' : '' }}</span>
+      <span class="grow"></span>
+      <button class="mini" title="导出整个工程 JSON（素材 / 图层 / 页面 / 自定义字库）" @click="downloadProject">JSON⤓</button>
+      <button class="mini" title="导入工程 JSON（会替换当前工程，可 Ctrl+Z 撤回）" @click="projFile.click()">JSON⤒</button>
+      <button class="mini" :class="{ primary: dirty }" :disabled="busy || !cloud.ok" :title="cloud.ok
+        ? '保存到当前存档（自定义字库会随工程一起上传）；没有档名会打开存档菜单'
+        : '在线存档不可用：请用「导出 JSON」备份'" @click="quickSave">保存</button>
+      <button class="mini" title="屏幕预设（尺寸 / 圆屏 / 背景色 / 指令模板）" @click="openPreset">⚙</button>
+    </div>
 
     <!-- 浮层: 不占常驻高度 -->
     <div v-if="menuOpen" class="menu" @click.stop>
@@ -455,9 +461,13 @@ function onProjFile(e) {
 
 <style scoped>
 .projectbar {
-  position: relative; display: flex; align-items: center; gap: 5px; min-width: 0;
+  position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 2px; min-width: 0;
   padding: 3px 6px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg2);
 }
+.bar-row1, .bar-row2 { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.bar-row1 .proj-name { flex: 1; min-width: 0; }
+.bar-row1 .pname { max-width: 100%; }
+.bar-row2 .grow { flex: 1; }
 .grow { flex: 1; }
 .star-btn {
   flex: none; border: none; background: transparent; color: var(--warn);
