@@ -318,6 +318,13 @@ async function run() {
         + (picked ? '（目录设置只对这个存档生效，记得保存工程）' : '')
         + (kept.length ? ` · 保留原样: ${kept.join(', ')} (不覆盖)` : '')
         + ` · ${summary}`
+        + (stat.ringSpans && stat.ringSpans.ok
+          ? ` · 圆环查表 ${stat.ringSpans.bytes} B (${stat.ringSpans.rows} 行)`
+          : (stat.ringSpans && stat.ringSpans.code !== 'no-ring'
+            ? ` · 圆环查表未生成: ${stat.ringSpans.reason}`
+              + (['rect', 'seg-off'].includes(stat.ringSpans.code)
+                ? '' : ' · 圆环+分段时请把 bsp_ring.c 的 RING_FAST_SEG 设为 0 (否则缺头文件)')
+            : ''))
         + (stat.lzss ? ` · LZSS ${KB(stat.lzss.packedBytes)} / 原始 ${KB(stat.lzss.rawBytes)}，解码缓冲 ${stat.lzss.bufferSize} B` : '')
         + (stat.lzss ? ' · 需新版 app_ui.h（UI_FRAME_REF.asset / UI_FONT.assetBase / UI_DrawFrame(id)）并移除 app_ui.c 里旧 UI_DrawFrame' : '')
         + (legacy.length ? ` · 旧文件仍在目录: ${legacy.join(', ')} —— 请从 Keil 工程移除` : '')
@@ -336,7 +343,7 @@ async function run() {
   <div class="ea">
     <div class="mainrow">
       <button class="primary" :disabled="busy" @click="run"
-              title="把 ring_config.h / ring_scan.h/.c / ui_table.c / ui_font.c / ui_assets_*.c / ui_assets_lzss.* / lzss_decode.* / ui_asset_draw.* / ui_task.* 一次写进这个存档自己的 code/lcd/ 目录 (每个存档单独记住; 不支持时打包 ZIP)">
+              title="把 ring_config.h / ring_seg_spans.h / ring_scan.h/.c / ui_table.c / ui_font.c / ui_assets_*.c / ui_assets_lzss.* / lzss_decode.* / ui_asset_draw.* / ui_task.* 一次写进这个存档自己的 code/lcd/ 目录 (每个存档单独记住; 不支持时打包 ZIP)">
         {{ busy ? '导出中…' : '一键导出到文件夹' }}
       </button>
       <button class="zipbtn" :disabled="busy" @click="downloadZip"

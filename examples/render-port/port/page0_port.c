@@ -9,6 +9,7 @@
 #include "ui_table.h"
 #include "app_ui.h"
 #include "ui_asset_draw.h"
+#include "bsp_ring.h"
 
 /* ui_user.h 里 UI_SRC_motor_speedlevel 指向这个影子变量 */
 int32_t g_uiSpeed = 1;
@@ -35,6 +36,8 @@ void Page0Port_Init(void)
     s_pauseColor = PAGE0_COLOR_ON;
     s_pauseValid = 0u;
 
+    /* 圆环引擎必须先初始化 (颜色/几何/定时器默认值都在这里); 示例原先漏了这一步。 */
+    Ring_Init();
     /* 设表 + UI_Init；不进任何页。面板初始化由目标工程先做。 */
     LCD_UI_Setup();
 }

@@ -14,6 +14,7 @@ import { rgb565Bytes } from './lzss.js'
 import { roundGeom, forEachOutsidePixel, OUT_ALPHA_MIN, OUT_DARK_MAX } from './roundscreen.js'
 import { nearestColorName, rgb565To888, rgb888To565 } from './colors.js'
 import { buildRingScan } from './ringscan.js'
+import { buildRingSegSpans, ringSpansInfo } from './ringspans.js'
 import { buildColorHeader, collectUsedColors } from './colordef.js'
 import { projectMeta, archiveBaseName, archiveFileName } from './archive.js'
 
@@ -1374,10 +1375,30 @@ export function exportLayer(opt = {}) {
     const ringInst = state.instances.find(i => i.kind === 'ring')
     if (ringInst) ringScan = buildRingScan(ringInst, screen.value)
   } catch { ringScan = null }
+  /* 圆环每段逐行跨度表 (ring_seg_spans.h): 只有「圆环 + 分段」才生成。
+   * 与 ring_config.h 同一次导出 —— 把刚生成的配置文本交给生成器核对 9 个几何
+   * 指纹, 对不上就整张跳过 (绝不写一张和配置不同步的表)。
+   * 不支持的原因 (圆角矩形/分段关/相位非 0/屏幕过大) 进 stat.ringSpans, 面板显示。 */
+  const ringConfig = buildRingConfig()
+  let ringSpans = null, ringSpansHeader = null
+  try {
+    const ringInst = state.instances.find(i => i.kind === 'ring')
+    const rs = buildRingSegSpans(ringInst, screen.value, { configText: ringConfig })
+    if (rs.ok) {
+      ringSpansHeader = rs.header
+      ringSpans = { ok: true, code: '', reason: '', bytes: rs.bytes, rows: rs.rows, segs: rs.segs, maxN: rs.maxN }
+    } else {
+      ringSpans = { ok: false, code: rs.code, reason: rs.reason, bytes: 0, rows: 0, segs: 0, maxN: 0 }
+    }
+  } catch (e) {
+    ringSpans = { ok: false, code: 'error', bytes: 0, rows: 0, segs: 0, maxN: 0,
+      reason: '生成器异常: ' + (e && e.message ? e.message : e) }
+  }
   let files = [
     { name: 'ui_color.h', text: buildColorHeader(collectUsedColors(plan, plan.screen)) },
     ...(ringScan ? [{ name: 'ring_scan.h', text: ringScan.header }, { name: 'ring_scan.c', text: ringScan.source }] : []),
-    { name: 'ring_config.h', text: buildRingConfig() },
+    { name: 'ring_config.h', text: ringConfig },
+    ...(ringSpansHeader ? [{ name: 'ring_seg_spans.h', text: ringSpansHeader }] : []),
     ...(taskC ? [{ name: 'ui_task.c', text: taskC }, { name: 'ui_task.h', text: taskHeaderFor(plan) }] : []),
     { name: 'ui_assets_int.c', text: assetsC(intPx, 'int') },
     { name: 'ui_assets_ext.c', text: assetsC(extPx, 'ext') },
@@ -1406,6 +1427,7 @@ export function exportLayer(opt = {}) {
     stat: {
       int: intPx.length, ext: extPx.length, dyn, layers: plan.items.length, skipped: plan.skipped.length,
       tasks: taskC ? plan.items.filter(i => i.bind).length : 0,
+      ringSpans,
       lzss: lzssPlan ? {
         ...lzssEnc.stats,
         chunked: lzssPlan.chunked,
@@ -1426,6 +1448,18 @@ export function estimateLzss(opt = {}) {
     return { ok: true, stat: stat.lzss }
   } catch (e) {
     return { ok: false, reason: e && e.message ? e.message : String(e), stat: null }
+  }
+}
+
+/** 导出面板用: 圆环查表 (ring_seg_spans.h) 会不会生成 / 占多少 Flash。
+ *  与 exportLayer 共用同一份生成器 + 参数归一化 + 模块缓存, 面板显示的数
+ *  就是真正写进文件的那张表; 不重复一套估算公式。 */
+export function estimateRingSpans() {
+  try {
+    const inst = state.instances.find(i => i.kind === 'ring')
+    return ringSpansInfo(inst, screen.value, { configText: buildRingConfig() })
+  } catch (e) {
+    return { ok: false, code: 'error', reason: '生成器异常: ' + (e && e.message ? e.message : e) }
   }
 }
 
@@ -3501,7 +3535,9 @@ function frameExportParts(inst, i, wantArray) {
 
 /* 生成 ring_config.h: 把编辑器里的圆环落成固件宏 (字段一一对应 bsp_ring.h / Ring_SetXxx)
  * 注意: ring_tables.h 不由网页导出 —— 它必须与 bsp_ring.h 的 5 个参数严格一致,
- * 由固件侧 tools/ring_sim/gen_tables.py 生成 (Keil Before Build 已挂)。 */
+ * 由固件侧 tools/ring_sim/gen_tables.py 生成 (Keil Before Build 已挂)。
+ * ring_seg_spans.h (逐段跨度表) 由 ringspans.js 生成, 用同一套参数; exportLayer
+ * 会把这里生成的文本交给它核对 9 个几何指纹, 对不上就整张跳过。 */
 export function buildRingConfig() {
   const sc = screen.value
   const inst = state.instances.find(i => i.kind === 'ring')

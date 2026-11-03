@@ -1,9 +1,9 @@
 <script setup>
-import { ref, computed, onUnmounted } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import {
   state, screen,
   buildExport, buildRingConfig, warnings, updateInstance, toggleCircleWarn,
-  ensureFontsReady, framesCount, frameLayers,
+  ensureFontsReady, framesCount, frameLayers, estimateRingSpans,
 } from '../store.js'
 import { copyText, downloadText } from '../utils.js'
 import { shootFrameImage } from '../frameshoot.js'
@@ -62,6 +62,35 @@ const output = computed(() => {
 const warnSafe = computed(() => {
   try { return warnings.value || [] } catch (e) { return [{ level: 'warn', text: '警告计算错误: ' + e.message }] }
 })
+/* 圆环查表 (ring_seg_spans.h): 面板里直接给出 Flash 代价 —— 用户需要知道这是
+ * 通常 4~7KB 的表, 而不是只看到 LZSS 的压缩统计 (表不进 LZSS)。
+ * 与一键导出共用 store/ringspans 的同一份生成器, 数字就是真实写盘的那张表。
+ * 用「签名 + 防抖」而不是 computed: 拖动圆环时 x/y 每帧都变, 每帧重算整张表
+ * (240×240 约 10ms) 会拖慢拖拽; 停手 300ms 后再算一次。 */
+const ringSpanInfo = ref(null)
+const ringSpanSig = computed(() => {
+  const inst = state.instances.find(i => i.kind === 'ring')
+  if (!inst) return 'none'
+  const r = inst.ring || {}
+  return [screen.value.w, screen.value.h, inst.x, inst.y, inst.w, inst.h,
+    r.shape, r.rIn, r.rOut, r.inset, r.fitPad, r.pad,
+    r.startDeg, r.arcEndDeg, r.arcDir, r.segOn, r.segCount,
+    r.segGapPct, r.segGapDeg, r.segPhaseDeg].join(',')
+})
+let ringSpanTimer = 0, ringSpanFirst = true
+function refreshRingSpans() {
+  try { ringSpanInfo.value = estimateRingSpans() } catch (e) {
+    ringSpanInfo.value = { ok: false, code: 'error', reason: String(e && e.message || e) }
+  }
+}
+watch(ringSpanSig, () => {
+  clearTimeout(ringSpanTimer)
+  /* 首帧立即算 (面板一打开就有数), 之后拖动/改参数按 300ms 防抖 */
+  if (ringSpanFirst) { ringSpanFirst = false; refreshRingSpans(); return }
+  ringSpanTimer = setTimeout(refreshRingSpans, 300)
+}, { immediate: true })
+onUnmounted(() => clearTimeout(ringSpanTimer))
+const ringSpanKb = computed(() => (ringSpanInfo.value?.ok ? (ringSpanInfo.value.bytes / 1024).toFixed(1) : ''))
 /* 导出预览: 折叠窗 (默认只给 头部 + 尾部, 点「展开全部」看整段) —— 整段导出都在这儿,
  * 放"导出"按钮下面, 不用滚到底部去看 */
 const prevFold = ref(true)                 /* 默认折叠: 只留标题行 (用户: 默认改为折叠的) */
@@ -371,7 +400,7 @@ function setFrame(inst, i, e) {
         <div class="arow">
           <button class="primary" @click="doExportCopy('all')">复制全部{{ copied === 'all' ? ' ✓' : '' }}</button>
           <button @click="doExportDownload()">下载 .c</button>
-          <button @click="doCopy(buildRingConfig(), 'ringcfg')" title="把圆环参数 (几何+进度弧+白斑) 复制成 ring_config.h 的内容, 直接粘进 code/spi/ring_config.h 覆盖, 然后编译; 逐像素扫描表 ring_scan.h/.c 随「一键导出」生成">{{ copied === 'ringcfg' ? '已复制 ✓' : '复制 ring' }}</button>
+          <button @click="doCopy(buildRingConfig(), 'ringcfg')" title="把圆环参数 (几何+进度弧+白斑) 复制成 ring_config.h 的内容, 直接粘进 code/spi/ring_config.h 覆盖, 然后编译; 逐像素扫描表 ring_scan.h/.c 与逐段跨度表 ring_seg_spans.h 随「一键导出」生成">{{ copied === 'ringcfg' ? '已复制 ✓' : '复制 ring' }}</button>
         </div>
         <div class="dim note" v-if="fontMsg">{{ fontMsg }}</div>
 
@@ -382,6 +411,27 @@ function setFrame(inst, i, e) {
           <label class="dim">每行</label>
           <input type="number" min="1" max="64" v-model.number="state.exportOpts.perLine" placeholder="16" style="width: 48px" />
           <span class="dim">个</span>
+        </div>
+      </section>
+
+      <!-- 圆环查表: 只有「圆环 + 分段」才生成; 不进 LZSS 统计, 所以单独把 Flash 代价
+           摆出来 (用户需要知道这张表通常 4~7KB, 不是白送的) -->
+      <section class="block" v-if="ringSpanInfo && ringSpanInfo.code !== 'no-ring'">
+        <div class="block-head">
+          <span class="bhead-t">圆环查表</span>
+          <span class="dim bhead-d">ring_seg_spans.h · 随一键导出</span>
+        </div>
+        <div v-if="ringSpanInfo.ok" class="dim note"
+             title="换档增量重画 (RING_FAST_SEG) 用的逐段逐行几何表; 与 ring_config.h 同一次导出, 几何指纹一致。RING_FAST_SEG=0 时可以不生成这张表。">
+          查表 <b>{{ ringSpanInfo.rows }}</b> 行 · <b>{{ ringSpanInfo.bytes }} B</b> Flash（{{ ringSpanKb }} KB）
+          = 行 5B + 偏移 {{ ringSpanInfo.segs + 1 }}×2B · 单行最长 {{ ringSpanInfo.maxN }} px
+        </div>
+        <div v-else class="warn note">
+          不生成：{{ ringSpanInfo.reason }}
+          <template v-if="!['rect', 'seg-off', 'no-ring'].includes(ringSpanInfo.code)">
+            —— 圆环 + 分段时 bsp_ring.c 默认会 <code>#include</code> 这张表；不生成请把
+            <b>RING_FAST_SEG</b> 设为 0（否则编译缺头文件）。
+          </template>
         </div>
       </section>
 

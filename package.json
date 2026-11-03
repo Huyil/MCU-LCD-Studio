@@ -26,7 +26,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "npm run check:logic && npm run check:ui",
-    "check:logic": "node scripts/check-roundscreen.mjs && node scripts/check-ringarc.mjs && node scripts/check-ringrecti.mjs && node scripts/check-ringrange.mjs && node scripts/check-ringseg.mjs && node scripts/check-ringscan.mjs && node scripts/check-aspect.mjs && node scripts/check-archive.mjs && node scripts/check-zip.mjs && node scripts/check-colordef.mjs && node scripts/check-store.mjs && node scripts/check-uiexport.mjs && node scripts/check-layerexport.mjs && node scripts/check-multifile.mjs && node scripts/check-export-keil.mjs && node scripts/check-card.mjs && node scripts/check-glow.mjs && node scripts/check-even.mjs && node scripts/check-frameimage.mjs && node scripts/check-tint.mjs && node scripts/check-lzsspack.mjs",
+    "check:logic": "node scripts/check-roundscreen.mjs && node scripts/check-ringarc.mjs && node scripts/check-ringrecti.mjs && node scripts/check-ringrange.mjs && node scripts/check-ringseg.mjs && node scripts/check-ringspans.mjs && node scripts/check-ringscan.mjs && node scripts/check-aspect.mjs && node scripts/check-archive.mjs && node scripts/check-zip.mjs && node scripts/check-colordef.mjs && node scripts/check-store.mjs && node scripts/check-uiexport.mjs && node scripts/check-layerexport.mjs && node scripts/check-multifile.mjs && node scripts/check-export-keil.mjs && node scripts/check-card.mjs && node scripts/check-glow.mjs && node scripts/check-even.mjs && node scripts/check-frameimage.mjs && node scripts/check-tint.mjs && node scripts/check-lzsspack.mjs",
     "check:ui": "node scripts/check-ui-render.mjs",
     "check:lzsspack": "node scripts/check-lzsspack.mjs"
   },

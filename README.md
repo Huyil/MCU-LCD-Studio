@@ -81,6 +81,8 @@ ui_asset_draw.c / .h         渲染桥：Frame/Ref/Asset/Glyph
 ui_assets_int.c              内部 raw 素材（如果用了“内部”）
 ui_assets_ext.c              外部 raw 素材（如果用了“外部”）
 ring_config.h                圆环几何/段数/角度（无圆环也会生成，可忽略）
+ring_seg_spans.h             圆环每段逐行跨度表（仅“圆环 + 分段”时生成，通常 4~8KB）
+ring_scan.h / .c             圆环逐像素扫描表（启用扫描导出时才有）
 ```
 
 - `ui_assets_lzss.*`、`lzss_decode.*`、`ui_asset_draw.*` **只在工程含 LZSS 素材时生成**；
@@ -195,6 +197,29 @@ frames_1021(x, y, id, color, bg); /* 2 帧图标，id 1/2 */
 
 也可以手动改 `UI_FRAME_REF.index` 后调用 `UI_DrawFrameRefAt`；`index == 255` 表示“只清底色”。
 
+### 4.6 圆环：引擎、查表与主机接口
+
+网页导出器只生成**参数和表**，不生成圆环引擎：
+
+| 文件 | 谁生成 | 说明 |
+|---|---|---|
+| `ring_config.h` | 网页 | 圆心/半径/起止角/分段/颜色等设计参数 |
+| `ring_seg_spans.h` | 网页（可选） | 每段逐行的段体/缝跨度，换档增量重画的查表快路径 |
+| `ring_scan.h/.c` | 网页（可选） | 逐像素扫描表（启用扫描导出时） |
+| `bsp_ring.c/.h`、`ring_tables.h`、`ring_grad.h` | 示例工程 | 引擎与它的预烘表，**仍从 `examples/render-port` 拷贝**，导出器不覆盖 |
+
+`ring_seg_spans.h` 只在 **圆环（`RING_SHAPE=0`）+ 分段（`RING_SEG_ON=1`）+ 分段相位 0** 时生成，并且和 `ring_config.h` 同一次导出、9 个几何指纹逐项一致。圆角矩形、无圆环、分段关闭、相位非 0、表内 x/y 超出 `uint8`、环完全在屏幕外时会跳过，导出面板给明确原因，不会写半套。**跳过时如果仍是“圆环 + 分段”，记得把 `bsp_ring.c` 的 `RING_FAST_SEG` 设为 0**，否则引擎默认会 `#include` 一个不存在的头文件。表大小 = 行数×5B + (N+1)×2B：示例 70 段、1042 行 = **5352 B**；常见配置在 4~7KB，段数/环厚更大时按公式增长，导出面板的「圆环查表」会直接显示。不需要它时也把 `RING_FAST_SEG` 设为 0，退回扇区重画。也仍可用 `examples/render-port/tools/gen_ring_spans.py` 生成同一张表（数据区逐字节一致）。
+
+> 口径说明：网页生成器与示例 Python 生成器逐字节一致；示例 Python 走 `atan2`，而固件慢路径用整数近似 `ring_tab_atan2()`，理论上个别段边界可能差 1px（快路径只查表，不影响能否绘制）。首次上板建议对比 `RING_FAST_SEG=1/0` 的观感；若要严格同口径，需要两边同时改生成器并用新 golden 重测。
+
+主机侧函数数量（按示例 `bsp_ring.h`）：
+
+- **必须 5 个**：生成的 `ui_task.c` 直接调用 `Ring_SetBg` / `Ring_Start` / `Ring_Stop` / `Ring_ScreenInvalidate` 4 个；上电后还必须调用一次 `Ring_Init()`（不在生成物里，接在 `Board_Init()` / `LCD_Init()` 之后）。
+- **可选 29 个**：`bsp_ring.h` 公开 34 个函数，除上面 5 个外的运行期接口，常用 `Ring_SetGear` / `Ring_SetProgress` / `Ring_ApplySeg` / `Ring_ApplyArc` / `Ring_SetArc` / `Ring_SetColor` / `Ring_SetGlint` / `Ring_SetDir` / `Ring_SetDim` / `Ring_SetLitNoPaint`。其中 `Ring_ApplySeg` 是查表快路径的入口（亮段变化 ≤8 且新旧值都 >2 才走表，否则自动退回扇区/整弧重画，表只影响速度不影响正确性）。
+- **低层 3 个**：`LCD_RingBegin` / `LCD_RingRun` / `LCD_RingEnd`，由示例屏幕驱动 `bsp_gc9a01.c/.h` 提供、被 `bsp_ring.c` 调用；换屏时由新驱动实现，导出器不生成，应用不用直接调。
+
+更完整的目录、跳出条件和主机接口表见 [examples/render-port/README.md](examples/render-port/README.md)。
+
 ---
 
 ## 5. 系统字与逐字微调
@@ -280,7 +305,7 @@ Page0Port_SetPause(0, 0xFFFF);       /* 0 = K·RPM，1 = PAUSE */
 
 ```bash
 pnpm check          # check:logic + check:ui
-pnpm check:logic    # 21 组逻辑/导出/编译自检
+pnpm check:logic    # 22 组逻辑/导出/编译自检
 pnpm check:ui       # 用 Vite SSR 渲染面板，防白屏
 pnpm build
 ```

@@ -77,6 +77,7 @@ ui_assets_int.c        内部 raw 素材（本例可能只有文件头/空表）
 ui_assets_ext.c        外部 raw 素材（本例通常为空壳）
 ui_user.h              工程钩子，只在第一次导出生成，之后不覆盖
 ring_config.h          即使没有圆环也会生成，可忽略
+ring_seg_spans.h       圆环 + 分段时生成（换档查表快路径，通常 4~8KB）
 lcd-project.json       工程备份
 lcd-font-*.ttf         自定义字库原文件（如果用了）
 ```
@@ -86,6 +87,7 @@ lcd-font-*.ttf         自定义字库原文件（如果用了）
 - `ui_assets_lzss.c/.h`、`lzss_decode.*`、`ui_asset_draw.*` **只在有 LZSS 组时生成**；
 - `ui_assets_ext.c` 基本总会生成，空壳也正常；
 - `ring_scan.h/.c` 仅在有圆环时生成；
+- `ring_seg_spans.h` 仅在「圆环 + 分段」时生成（圆角矩形/分段关/相位非 0 会跳过，面板给原因）；
 - `ui_task.c` 无任务内容时可能不生成，但 66 示例会生成；
 - 不是每次导出都带 `ui_assets_int.c` 里的字模：存储选“内部”时字模才会进这里。
 
@@ -263,7 +265,7 @@ ui_assets_lzss.c / ui_assets_lzss.h
 ui_assets_int.c / ui_assets_ext.c
 lzss_decode.c / lzss_decode.h
 ui_asset_draw.c / ui_asset_draw.h
-ring_config.h / ring_scan.c / ring_scan.h
+ring_config.h / ring_seg_spans.h / ring_scan.c / ring_scan.h
 ```
 
 可以改、且不会被覆盖的工程文件：
@@ -288,4 +290,4 @@ multi_timer.c/.h   （换 1ms 时基时改）
 - 纯数字 66 只需要 4 个 UI/业务函数 + 3 个面板原语；静态帧/电池才会额外用到 `UI_DrawFrame*`。
 - 复用示例 `bsp_gc9a01.c` 才需要 8 个 `SPI_*`；自己实现 `LCD_*` 时 SPI 层可以不要。
 - 换 MCU 还要替换 `multi_timer.c` 的 1ms 时基，以及 `bsp_gc9a01.c` 里的 SysTick `HAL_Delay`。
-- `ring_tables.h` / `ring_grad.h` 是示例圆环引擎自带，不由网页导出；`ring_scan.h/.c` 只在启用逐像素扫描时生成。
+- `ring_tables.h` / `ring_grad.h` 是示例圆环引擎自带，不由网页导出；`ring_scan.h/.c` 只在启用逐像素扫描时生成；`ring_seg_spans.h` 只在「圆环 + 分段」时生成（`RING_FAST_SEG=0` 可以不要）。
