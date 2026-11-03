@@ -2059,6 +2059,9 @@ static void ring_paint_end(int32_t absQ8, uint16_t fg, uint8_t outwardAfter, int
 
 /* 弧带绘制。winW > 0 时只画 [winA, winA+winW) 这一段扇区 (Q8, 相对弧起点),
  * winW == 0 时画整弧。增量重画靠这个把一次换档的 SPI 从整弧 ~17KB 压到几百字节。 */
+#if (RING_SEG_ON) && (RING_SHAPE == 0)
+static int16_t s_win_c0, s_win_s0, s_win_c1, s_win_s1;
+#endif
 static uint8_t ring_paint_band(int32_t winA, int32_t winW)
 {
     const uint32_t RIN2  = (uint32_t)(RING_R_IN * RING_R_IN);
@@ -2086,6 +2089,56 @@ static uint8_t ring_paint_band(int32_t winA, int32_t winW)
         if (y1 > (RING_SCR_H - 1)) y1 = (int16_t)(RING_SCR_H - 1);
     }
 
+#if (RING_SEG_ON) && (RING_SHAPE == 0)
+    /* 窗口裁剪预计算: 两条边界射线的单位向量 (Q14)。
+     * ring_paint_delta 保证窗口 < 180°, 于是"像素在窗口内"等价于两个叉积的符号:
+     *   (c0*dy - s0*dx) >= 0  且  (c1*dy - s1*dx) <= 0
+     * 原来每个被扫到的像素都要走 ring_pixel_in_win() -> ring_arc_rel_u() ->
+     * ring_atan2() 一整趟 (函数调用 + 查表 + 若干乘法), 一步要扫 ~1400 像素
+     * 只为画 ~570 个, 占了整步 21ms 里的大头。 */
+    {
+        int16_t wc0 = 0, ws0 = 0, wc1 = 0, ws1 = 0;
+
+        if (winW > 0) {
+            ring_unit_q8((int32_t)RING_ARC_START_DEF * 128 + winA, &wc0, &ws0);
+            ring_unit_q8((int32_t)RING_ARC_START_DEF * 128 + winA + winW, &wc1, &ws1);
+        }
+        s_win_c0 = wc0; s_win_s0 = ws0; s_win_c1 = wc1; s_win_s1 = ws1;
+    }
+#endif
+#if (RING_ARC_SPAN_DEF) < RING_ANG_UNITS
+    /* 前沿羽化参数: 与行循环之后那次 ring_paint_end() 同一套, 提前算好 ——
+     * 让前沿那 1~2px 在本次写入时直接就是羽化色, 不再"先写黑、后面再补一遍"。 */
+    int16_t  fC = 0, fS = 0;
+    int32_t  fAa = s_edgeAAHalf;
+    uint16_t fCol = 0;
+    int16_t  fY0 = 0, fY1 = -1;
+    uint8_t  hasFront = 0;
+
+    if ((s_arc_sweep != 0u) && (s_arc_sweep < (uint16_t)RING_ARC_RANGE_U) &&
+        ((s_arc_caps & 0x2u) == 0u) && (fAa > 0)) {
+        uint8_t  fcell = (s_arc_endQ8 > 0u)
+                             ? (uint8_t)((s_arc_endQ8 - 1u) / (uint32_t)RING_SEG_P_Q8)
+                             : 0u;
+        uint32_t rem   = s_arc_endQ8 % (uint32_t)RING_SEG_P_Q8;
+        uint16_t ffg   = (rem >= (uint32_t)RING_SEG_BODY_Q8)
+                             ? ring_seg_groove(ring_edge_color(fcell), 0)
+                             : ring_end_color(fcell, ring.arcTrack, 1u);
+
+        ring_unit_q8((int32_t)ring.arcStart * 128 +
+                         (int32_t)ring.arcDir * (int32_t)s_arc_endQ8, &fC, &fS);
+        fCol     = ring_end_color(fcell, ffg, 0u);
+        /* 前沿射线只覆盖一小段行: 记下范围, 行循环里只在这几行做逐像素判断 */
+        {
+            int32_t yA = (int32_t)RING_CY + (((int32_t)RING_R_IN * fS) >> 14);
+            int32_t yB = (int32_t)RING_CY + (((int32_t)RING_R_OUT * fS) >> 14);
+
+            fY0 = (int16_t)((yA < yB ? yA : yB) - 3);
+            fY1 = (int16_t)((yA > yB ? yA : yB) + 3);
+        }
+        hasFront = 1u;
+    }
+#endif
     LCD_RingBegin();
     for (y = y0; y <= y1; y++) {
         int16_t dy  = (int16_t)(y - RING_CY);
@@ -2120,9 +2173,17 @@ static uint8_t ring_paint_band(int32_t winA, int32_t winW)
 #if RING_SEG_ON && (RING_SHAPE == 0)
             if (winW > 0) {
                 /* 扇区 < 180°, 与一行相交必是连续区间: 两端各收一次即可 */
-                while ((xa <= xb) && !ring_pixel_in_win((int16_t)(xa - RING_CX), dy, winA, winW)) xa++;
+                while (xa <= xb) {
+                    int32_t ddx = (int32_t)(xa - RING_CX);
+                    if (((int32_t)s_win_c0 * dy - (int32_t)s_win_s0 * ddx) >= 0) break;
+                    xa++;
+                }
                 if (xa > xb) continue;
-                while ((xb >= xa) && !ring_pixel_in_win((int16_t)(xb - RING_CX), dy, winA, winW)) xb--;
+                while (xb >= xa) {
+                    int32_t ddx = (int32_t)(xb - RING_CX);
+                    if (((int32_t)s_win_c1 * dy - (int32_t)s_win_s1 * ddx) <= 0) break;
+                    xb--;
+                }
                 if (xb < xa) continue;
             } else if ((uint16_t)RING_ARC_RANGE_U < (uint16_t)RING_ANG_UNITS) {
                 /* 整弧重画也要只碰**配置的弧范围** [start, start+span):
@@ -2177,7 +2238,35 @@ static uint8_t ring_paint_band(int32_t winA, int32_t winW)
 #if RING_DEPTH_DEF > 0
                         band = ring_shade(band, r2, dx, dy, dth);
 #endif
-                        px[n++] = ring_mix(ring.bg, band, ring_cov(r2), dth);
+                        {
+                            uint8_t  cv = ring_cov(r2);
+                            uint16_t col = ring_mix(ring.bg, band, cv, dth);
+
+#if (RING_ARC_SPAN_DEF) < RING_ANG_UNITS
+                            if (hasFront && (y >= fY0) && (y <= fY1)) {
+                                int32_t cross = (int32_t)fC * dy - (int32_t)fS * (int32_t)dx;
+                                int32_t dist  = (ring.arcDir > 0) ? cross : -cross;
+
+                                /* 射线叉积在"对面 180°"处同样接近 0, 必须再用
+                                 * 沿射线的投影把范围收到环带这一段, 否则会在环的
+                                 * 正对面也画出一条羽化线 (整弧重画时不会发生, 因为
+                                 * ring_paint_end 自己带了 bbox)。 */
+                                int32_t proj = (int32_t)fC * dx + (int32_t)fS * (int32_t)dy;
+
+                                if ((dist > 0) && (dist < (fAa * 2)) &&
+                                    (proj > ((int32_t)(RING_R_IN - 2) * 16384)) &&
+                                    (proj < ((int32_t)(RING_R_OUT + 2) * 16384))) {
+                                    int32_t v = 255 - ((dist * 128) / fAa);
+                                    uint32_t a;
+
+                                    if (v < 0) v = 0;
+                                    a = ((uint32_t)v * cv + 127u) >> 8;
+                                    col = ring_mix(ring.bg, fCol, (uint8_t)a, 0);
+                                }
+                            }
+#endif
+                            px[n++] = col;
+                        }
                     }
                     x++;
                 }
@@ -2192,7 +2281,17 @@ static uint8_t ring_paint_band(int32_t winA, int32_t winW)
      * 配置的结束角重合, 由这里的结束角过渡负责。
      * 端帽打开的那一端不画; 有拖尾时末端由渐隐收边, 也不画。 */
 #if (RING_ARC_SPAN_DEF) < RING_ANG_UNITS
-    if ((s_arc_caps & 0x1u) == 0u) {
+    /* 增量重画 (winW>0) 只补"变了的那一段": 弧的两个**静态**端点 (起始角/结束角)
+     * 这一拍没变, 上一步已经画好, 不必每次都重扫一遍 bbox (实测这一步要 1.5ms/次,
+     * 一步三次 ≈ 4.7ms, 占了整步 20ms 的四分之一)。
+     * 只有窗口贴到某一端 (会把它擦掉) 时才补画; 进度前沿那一支永远画 —— 它跟着 sweep 走。 */
+    {
+        int32_t _wEnd  = winA + winW;
+        int32_t _rngQ8 = (int32_t)RING_ARC_RANGE_U * 128;
+        uint8_t _nearStart = (uint8_t)((winW == 0) || (winA < 1152));
+        uint8_t _nearEnd   = (uint8_t)((winW == 0) || ((_rngQ8 - _wEnd) < 1152));
+
+    if (_nearStart && ((s_arc_caps & 0x1u) == 0u)) {
         ring_paint_end((int32_t)ring.arcStart * 128,
                        (s_arc_sweep != 0u) ? ring_edge_color(0u) : ring.arcTrack,
                        (uint8_t)(ring.arcDir < 0),
@@ -2213,12 +2312,14 @@ static uint8_t ring_paint_band(int32_t winA, int32_t winW)
         } else {
             efg = ring.arcTrack;        /* 未满档: 结束角只是轨道末端 */
         }
-        ring_paint_end((int32_t)ring.arcStart * 128 +
-                           (int32_t)ring.arcDir * (int32_t)RING_ARC_RANGE_U * 128,
-                       efg,
-                       (uint8_t)(ring.arcDir > 0),
-                       s_edgeAAHalf,
-                       (uint8_t)(s_arc_sweep >= (uint16_t)RING_ARC_RANGE_U), ecell);
+        if (_nearEnd) {
+            ring_paint_end((int32_t)ring.arcStart * 128 +
+                               (int32_t)ring.arcDir * (int32_t)RING_ARC_RANGE_U * 128,
+                           efg,
+                           (uint8_t)(ring.arcDir > 0),
+                           s_edgeAAHalf,
+                           (uint8_t)(s_arc_sweep >= (uint16_t)RING_ARC_RANGE_U), ecell);
+        }
 
         /* 未满档: 当前进度前沿也做向外 AA (2026-10-22 用户要求)。
          * 前沿已落在槽中点 (fillEnd = lit*P - gap/2), 边界颜色取该处的槽色;
@@ -2247,6 +2348,7 @@ static uint8_t ring_paint_band(int32_t winA, int32_t winW)
                            s_edgeAAHalf, 0u, fcell);
         }
     }
+    }   /* _nearStart / _nearEnd 作用域 */
 #endif
 
     LCD_RingEnd();
@@ -2272,6 +2374,164 @@ static uint8_t ring_lit_of_sweep(uint32_t sweep)
     return 0;
 #endif
 }
+
+#ifndef RING_FAST_SEG
+#define RING_FAST_SEG 1     /* 1 = 逐段查表直绘 (表给位置, 颜色按像素算); 0 = 原扇区重画 */
+#endif
+
+#if RING_FAST_SEG
+/* 运行期 A/B: 0 = 强制走原来的扇区重画 (SWD 观察用), 1 = 走表。量产恒为 1。 */
+volatile uint8_t g_dbgRingFast = 1;
+#endif
+
+#if RING_FAST_SEG && (RING_SEG_ON) && (RING_SHAPE == 0)
+#include "ring_seg_spans.h"
+
+/* 表与 ring_config.h 必须同一套几何: 改完配置没重新生成表 -> 编译期拦住 */
+#if (RING_SPAN_CFG_CX != RING_CX) || (RING_SPAN_CFG_CY != RING_CY) || \
+    (RING_SPAN_CFG_RIN != RING_R_IN) || (RING_SPAN_CFG_ROUT != RING_R_OUT) || \
+    (RING_SPAN_CFG_START != RING_ARC_START_DEF) || (RING_SPAN_CFG_RANGE != RING_ARC_SPAN_DEF) || \
+    (RING_SPAN_CFG_N != RING_SEG_N) || (RING_SPAN_CFG_PITCH != RING_SEG_PITCH_X10000) || \
+    (RING_SPAN_CFG_BODY != RING_SEG_BODY_X10000)
+#error "ring_seg_spans.h is stale vs ring_config.h: run \"python tools/ring_sim/gen_ring_spans.py\""
+#endif
+
+/* 段体/缝按表直绘: 表只提供"这一行属于本段的哪些列", 颜色与 AA 仍按像素算。
+ * 角度不再用 atan2, 而是用两条边界射线的叉积 (与整弧重画同一套公式),
+ * 段内相位 → 边界距离是 x 的线性函数, 每像素只有几次乘法。 */
+static void ring_span_run(uint8_t seg, uint8_t on, uint8_t parts)
+{
+    uint16_t buf[RING_SPAN_MAX_N + 2];
+    uint16_t i;
+    uint8_t  k;
+    /* 本段两条边界射线 + 相邻段的起点射线 (单位向量 Q14) */
+    int16_t  c0, s0, c1, s1, c2, s2;
+    uint16_t cB = ring_edge_color(seg);
+    uint16_t cG = ring_seg_groove(cB, 0);
+    uint16_t cPrev = (seg > 0u) ? ring_seg_groove(ring_edge_color((uint8_t)(seg - 1u)), 0) : cG;
+    uint16_t cNext = (seg + 1u < (uint8_t)RING_SEG_N)
+                         ? ring_seg_groove(ring_edge_color((uint8_t)(seg + 1u)), 0) : cG;
+    uint16_t cBodyNext = (seg + 1u < (uint8_t)RING_SEG_N) ? ring_edge_color((uint8_t)(seg + 1u)) : cB;
+    int32_t  a0 = (int32_t)ring.arcStart * 128 + (int32_t)seg * RING_SEG_P_Q8;
+
+    ring_unit_q8(a0, &c0, &s0);
+    ring_unit_q8(a0 + RING_SEG_BODY_Q8, &c1, &s1);
+    ring_unit_q8(a0 + RING_SEG_P_Q8, &c2, &s2);
+
+    for (i = ringSegRowOfs[seg]; i < ringSegRowOfs[seg + 1]; i++) {
+        const RingSegRow *r = &ringSegRows[i];
+        int16_t dy = (int16_t)(r->y - RING_CY);
+        /* 段体与缝要分开画: 表里存在"只有缝"(nb=0) 或缝在段体前面 (xg<xb) 的行,
+         * 合成一个连续区间会从 xb 起连画 nb+ng 个像素, 把别的段的像素也涂掉
+         * ——板上看到的就是段内一条条斜条纹。相邻时才合并成一个窗口。 */
+        uint8_t p2, x0, n0;
+
+        for (p2 = 0u; p2 < 2u; p2++) {
+        if (((p2 == 0u) ? 0x1u : 0x2u) & parts) { } else { continue; }
+        uint8_t x;
+
+        x0 = p2 ? r->xg : r->xb;
+        n0 = p2 ? r->ng : r->nb;
+        if (n0 == 0u) continue;
+        if ((p2 == 0u) && r->nb && r->ng &&
+            ((r->xg == (uint8_t)(r->xb + r->nb)) ||
+             (r->xb == (uint8_t)(r->xg + r->ng)))) {
+            /* 相邻: 并成一段, 少一个窗口 */
+            x0 = (r->xg < r->xb) ? r->xg : r->xb;
+            n0 = (uint8_t)(r->nb + r->ng);
+            p2 = 2u;                       /* 画完就结束 */
+        }
+        for (x = x0; x < (uint8_t)(x0 + n0); x++) {
+            int16_t  dx = (int16_t)(x - RING_CX);
+            uint32_t r2 = (uint32_t)((int32_t)dx * dx) + (uint32_t)((int32_t)dy * dy);
+            uint16_t band;
+
+            if (!on) {
+                band = ring.arcTrack;                 /* 熄灭: 段体+缝都是轨道色 */
+            } else {
+                int32_t d0 = (int32_t)c0 * dy - (int32_t)s0 * dx;
+                int32_t d1 = (int32_t)c1 * dy - (int32_t)s1 * dx;
+
+                /* 段内、离两条边界都超过 AA 半宽 -> 直接用该段渐变色 (多数像素) */
+                if ((d0 > (int32_t)s_angAADiv * 127) && (-d1 > (int32_t)s_angAADiv * 127)) {
+                    band = cB;
+                } else {
+                    /* 边界/缝: 直接调用引擎自己的 ring_seg_aa_color(),
+                     * 颜色与整弧重画逐像素一致 (它内部用 0.5° 量化的 rel 角)。 */
+                    uint8_t cell = 0u;
+
+                    band = ring_seg_aa_color(dx, dy,
+                                (uint32_t)(int32_t)ring_arc_rel_u(dx, dy) * 128u, &cell);
+                }
+            }
+            buf[x - x0] = ring_mix(ring.bg, band, ring_cov(r2), 0);
+        }
+        LCD_RingRun((uint16_t)x0, (uint16_t)r->y, n0, buf);
+        if (p2 == 2u) break;
+        }
+    }
+}
+
+/* 前沿羽化: 与整弧重画里"进度前沿 AA"同一份算法, 只画前沿外侧 */
+static void ring_span_front_aa(void)
+{
+    uint8_t  fcell = 0u;
+    uint16_t ffg;
+
+    if ((s_arc_sweep == 0u) || (s_arc_sweep >= (uint16_t)RING_ARC_RANGE_U)) return;
+    if ((s_arc_caps & 0x2u) != 0u) return;
+
+    fcell = (s_arc_endQ8 > 0u)
+                ? (uint8_t)((s_arc_endQ8 - 1u) / (uint32_t)RING_SEG_P_Q8)
+                : 0u;
+    {
+        uint32_t rem = s_arc_endQ8 % (uint32_t)RING_SEG_P_Q8;
+
+        ffg = (rem >= (uint32_t)RING_SEG_BODY_Q8)
+                  ? ring_seg_groove(ring_edge_color(fcell), 0)
+                  : ring_end_color(fcell, ring.arcTrack, 1u);
+    }
+    ring_paint_end((int32_t)ring.arcStart * 128 +
+                       (int32_t)ring.arcDir * (int32_t)s_arc_endQ8,
+                   ffg, (uint8_t)(ring.arcDir > 0), s_edgeAAHalf, 0u, fcell);
+}
+
+/* lit 变化: 逐段直绘 + 前沿羽化。返回 1 = 已上屏。 */
+static uint8_t ring_paint_segs(uint8_t oldLit, uint8_t newLit)
+{
+    uint8_t s;
+
+    if (busy) return 0;
+    LCD_RingBegin();
+    if (newLit > oldLit) {
+        /* 点亮: 从前沿往外长, 视觉上是"推进" */
+        /* 从"上一段"开始画: 新点亮那一段的前一条缝里躺着上一帧前沿的羽化像素,
+         * 整弧/扇区重画靠 3° 前余量把它擦掉, 这里靠重画上一段的缝来覆盖。 */
+        for (s = (oldLit > 0u) ? (uint8_t)(oldLit - 1u) : 0u; s < newLit; s++)
+            ring_span_run(s, 1u, (uint8_t)((s == (uint8_t)(oldLit - 1u)) ? 0x2u : 0x3u));
+        /* 前沿外侧还要按轨道色擦一段: 整弧/扇区重画带 6° 余量, 会把上一帧
+         * 残在前沿外的羽化像素擦掉; 少了这一步, 环上会留一串"陈旧的淡色点"。 */
+        for (s = newLit; (s < (uint8_t)(newLit + 1u)) && (s < (uint8_t)RING_SEG_N); s++) {
+            ring_span_run(s, 0u, 0x3u);
+        }
+    } else {
+        /* 熄灭: 从前沿往回缩, 不让黑色从中间挖一个洞。
+         * 多擦一段 (oldLit): 旧前沿外侧的羽化像素落在这一段的缝里。 */
+        for (s = oldLit; s > newLit; s--) ring_span_run((uint8_t)(s - 1u), 0u, 0x3u);
+        if (oldLit < (uint8_t)RING_SEG_N) ring_span_run(oldLit, 0u, 0x3u);
+    }
+    ring_span_front_aa();
+    /* 窗口贴到弧起点时, 引擎会补画起点平口 AA; 前置余量可能把它盖暗, 这里补回来 */
+    if ((oldLit <= 2u) && ((s_arc_caps & 0x1u) == 0u)) {
+        ring_paint_end((int32_t)ring.arcStart * 128,
+                       (s_arc_sweep != 0u) ? ring_edge_color(0u) : ring.arcTrack,
+                       (uint8_t)(ring.arcDir < 0), s_edgeAAHalf,
+                       (uint8_t)(s_arc_sweep != 0u), 0u);
+    }
+    LCD_RingEnd();
+    return 1;
+}
+#endif
 
 /* 增量重画: 只补画 / 擦掉"亮段数变化"涉及的那一小段扇区。
  *   oldLit → newLit 的差值区间 = [oldLit×P − gap, newLit×P)
@@ -2725,12 +2985,25 @@ uint8_t Ring_ApplyArc(uint16_t track565, uint16_t fill565, uint32_t sweep, uint1
  * 与 Ring_ApplyArc 的区别: 只有 lit 变了 (颜色/起点/方向/底都没动) 时**只重画变化的
  * 那几段**, 不再推整弧 —— 换一档约 2 段 = 188px ≈ 0.13ms SPI, 整弧是它的 ~45 倍。
  * 其余情况 (进页/唤醒/换色/第一次画) 自动退化成整弧重画。 */
+#if RING_DBG_MIRROR
+volatile uint8_t g_dbgRingRedraw;   /* 调试: 1 = 下一拍强制整弧重画一次 */
+#endif
+
 uint8_t Ring_ApplySeg(uint16_t track565, uint16_t fill565, uint8_t lit, uint16_t trailU)
 {
     uint16_t range = RING_ARC_RANGE_U;
     uint32_t sweep;
     uint8_t  oldLit;
 
+#if RING_DBG_MIRROR
+    if (g_dbgRingRedraw) {
+        g_dbgRingRedraw = 0u;
+        ring.arcSweep = Ring_SegSweep(lit);
+        ring.arcFine  = 1;
+        ring_arc_update();
+        if (!busy && ring_paint_arc()) { ring_paint_mark(); ring.drawn = 1u; return 1u; }
+    }
+#endif
     if (range == 0u || range > RING_ANG_UNITS) range = RING_ANG_UNITS;
     if (lit > (uint8_t)RING_SEG_N) lit = (uint8_t)RING_SEG_N;
     ring_fill_end_set(lit);
@@ -2751,6 +3024,21 @@ uint8_t Ring_ApplySeg(uint16_t track565, uint16_t fill565, uint8_t lit, uint16_t
         ring.arcSweep = sweep;
         ring.arcFine  = 1;
         ring_arc_update();                       /* 先按新 sweep 摆好几何 */
+#if RING_FAST_SEG && (RING_SEG_ON) && (RING_SHAPE == 0)
+        /* 只变 lit: 按"每段逐行几何表"直绘, 一步只动变化的那几段, 无逐像素数学。
+         * 跳太多 (换页/大幅拖动) 就退回原来的扇区重画, 免得连画几十段。 */
+        if (g_dbgRingFast && (oldLit > 2u) && (lit > 2u) &&
+            ((uint8_t)((lit > oldLit) ? (lit - oldLit) : (oldLit - lit)) <= 8u)) {
+            if (ring_paint_segs(oldLit, lit)) {
+                ring_paint_mark();
+                g_ringPaints++;
+                g_ringPartialPaints++;
+                g_dbgSegDelta++;
+                ring.drawn = 1;
+                return 1u;
+            }
+        }
+#endif
         if (ring_paint_delta(oldLit, lit)) {
             ring_paint_mark();                   /* 更新指纹, s_litPainted 跟着更新 */
             g_ringPaints++;

@@ -28,6 +28,7 @@ examples/render-port/
 │  ├─ app_lcd.c/.h               面板初始化/清屏/休眠
 │  ├─ bsp_ring.c/.h              圆环引擎
 │  ├─ ring_tables.h / ring_grad.h   示例引擎自带，不由网页导出
+│  ├─ ring_seg_spans.h              圆环每段逐行几何（由 tools/gen_ring_spans.py 生成）
 │  ├─ bsp_gpio.h                 引脚宏（目标工程替换）
 │  └─ bsp_w25q.h                 空桩
 ├─ code/timer/multi_timer.c/.h   页面定时器
@@ -122,5 +123,15 @@ ui_color.h  ui_task.c/.h  ring_config.h
 如果启用了圆环逐像素扫描，导出物里还会多出 `ring_scan.h/.c`，一并加入工程。
 
 `ring_tables.h` / `ring_grad.h` 是示例圆环引擎自带的表，不由网页导出；换圆环参数时按引擎的生成方式处理，不要指望一键导出覆盖它们。
+
+`ring_seg_spans.h` 是**换档增量重画**用的逐段几何表（每段每行的段体/缝跨度），同样不由网页导出——它由 `ring_config.h` 生成：
+
+```bash
+python tools/gen_ring_spans.py            # 改完 ring_config.h 必须重跑
+python tools/gen_ring_spans.py --check    # 只校验是否过期（可挂到预编译）
+```
+
+忘了重跑不会画出错位的环：`bsp_ring.c` 里有编译期指纹校验，参数对不上直接 `#error`。
+不想要这张表就把它在 `bsp_ring.c` 里的开关关掉（`RING_FAST_SEG 0`），退回逐像素扇区重画。
 
 **不要覆盖** `code/lcd/ui_user.h` 和 `port/page0_port.c`。
